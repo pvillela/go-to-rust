@@ -3,18 +3,21 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/akamensky/argparse"
 )
 
 func main() {
 	// Parse command line arguments
-	var outDir *string
+	var inDir, outDir, fileName *string
 	{
 		// Create new argParser object
 		argParser := argparse.NewParser("go-to-rust", "Outputs Rust files from Go files")
-		// Create string flag
+		// Create flags
+		inDir = argParser.String("i", "in-dir", &argparse.Options{Required: true, Help: "Input directory"})
 		outDir = argParser.String("o", "out-dir", &argparse.Options{Required: true, Help: "Output directory"})
+		fileName = argParser.String("f", "file-name", &argparse.Options{Required: true, Help: "File name"})
 		// Parse input
 		err := argParser.Parse(os.Args)
 		if err != nil {
@@ -24,6 +27,15 @@ func main() {
 		}
 		// Finally print the collected string
 		fmt.Println(*outDir)
+	}
+
+	// Read input file
+	readInput := func(fileName string) string {
+		srcBytes, err := os.ReadFile(fmt.Sprintf("%v/%v", *inDir, fileName))
+		if err != nil {
+			panic(err)
+		}
+		return string(srcBytes)
 	}
 
 	// Write output to file
@@ -46,18 +58,21 @@ func main() {
 		fmt.Println("Data written to file:", fileName)
 	}
 
+	src := readInput(*fileName)
+	filePrefix := strings.Split(*fileName, ".")[0]
+
 	{
-		data := list_nodes(src1)
-		writeToFile("node_list.txt", data)
+		data := list_nodes(src)
+		writeToFile(filePrefix+"_node_list.txt", data)
 	}
 
 	// {
-	// 	data := node_tree(src1)
-	// 	writeToFile("node_tree.txt", data)
+	// 	data := node_tree(src)
+	// 	writeToFile(filePrefix+"_node_tree.txt", data)
 	// }
 
 	{
-		data := parse_source(src1)
-		writeToFile("output.txt", data)
+		data := parse_source(src)
+		writeToFile(filePrefix+".rs", data)
 	}
 }
