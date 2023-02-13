@@ -60,18 +60,21 @@ func main() {
 	src := readInput(*fileName)
 	filePrefix := strings.Split(*fileName, ".")[0]
 
+	// Write _node_list.txt file to aid in troubleshooting
 	{
 		data := list_nodes(src)
 		writeToFile(filePrefix+"_node_list.txt", data)
 	}
 
+	// Write AST file to aid in troubleshooting
 	// {
 	// 	data := node_tree(src)
 	// 	writeToFile(filePrefix+"_node_tree.txt", data)
 	// }
 
+	// Write .rx file
 	{
-		data := parse_source(src)
+		data := parseToRust(src)
 		writeToFile(filePrefix+".rs", data)
 	}
 }

@@ -8,11 +8,13 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"regexp"
 	"strings"
 )
 
-func parse_source(src string) string {
-
+// parseToRust parses a string containing Go source code and returns a string containing
+// a rough equivalent Rust code.
+func parseToRust(src string) string {
 	var sb strings.Builder
 
 	// Create the AST by parsing src.
@@ -54,7 +56,8 @@ func parse_source(src string) string {
 	return sb.String()
 }
 
-func map_type(typ string) string {
+// mapType maps Go types to Rust types
+func mapType(typ string) string {
 	switch typ {
 	case "int":
 		return "i64"
@@ -68,7 +71,8 @@ func map_type(typ string) string {
 	return typ
 }
 
-func pubify_name(name string) (pub, newName string) {
+// pubifyName transforms Go names to Rust names, indicating when they are public
+func pubifyName(name string) (pub, newName string) {
 	name1 := name[0:1]
 	if strings.ToUpper(name1) == name1 {
 		pub = "pub "
@@ -78,26 +82,29 @@ func pubify_name(name string) (pub, newName string) {
 	return
 }
 
+// type_spec transforms an *ast.TypeSpec node
 func type_spec(sb *strings.Builder, node *ast.TypeSpec) bool {
 	sb.WriteString(fmt.Sprintf("pub struct %v", node.Name.Name))
 	return struct_type(sb, node.Type.(*ast.StructType))
 }
 
+// struct_type transforms an *ast.StructType node
 func struct_type(sb *strings.Builder, node *ast.StructType) bool {
 	sb.WriteString(" {\n")
 	for _, field := range node.Fields.List {
-		pub, name := pubify_name(field.Names[0].Name)
-		typ := map_type(fmt.Sprint(field.Type))
+		pub, name := pubifyName(field.Names[0].Name)
+		typ := mapType(fmt.Sprint(field.Type))
 		sb.WriteString(fmt.Sprintf("%v %v: %v,\n", pub, name, typ))
 	}
 	sb.WriteString("}\n")
 	return false
 }
 
+// func_decl transforms an *ast.FuncDecl node
 func func_decl(fset *token.FileSet, sb *strings.Builder, node *ast.FuncDecl) bool {
 	// fn name
 	{
-		pub, name := pubify_name(node.Name.Name)
+		pub, name := pubifyName(node.Name.Name)
 		sb.WriteString(fmt.Sprintf("%vfn %v", pub, name))
 	}
 
@@ -106,7 +113,7 @@ func func_decl(fset *token.FileSet, sb *strings.Builder, node *ast.FuncDecl) boo
 		sb.WriteString("(\n")
 		for _, field := range node.Type.Params.List {
 			name := field.Names[0].Name
-			typ := map_type(fmt.Sprint(field.Type))
+			typ := mapType(fmt.Sprint(field.Type))
 			sb.WriteString(fmt.Sprintf("%v: %v,\n", name, typ))
 		}
 		sb.WriteString(") ")
@@ -114,10 +121,10 @@ func func_decl(fset *token.FileSet, sb *strings.Builder, node *ast.FuncDecl) boo
 
 	// Return type
 	{
-		sb.WriteString(" -> (")
+		sb.WriteString("-> ")
 		first := true
 		for _, field := range node.Type.Results.List {
-			typ := map_type(fmt.Sprint(field.Type))
+			typ := mapType(fmt.Sprint(field.Type))
 			if first {
 				first = false
 			} else {
@@ -125,24 +132,44 @@ func func_decl(fset *token.FileSet, sb *strings.Builder, node *ast.FuncDecl) boo
 			}
 			sb.WriteString(fmt.Sprintf("%v", typ))
 		}
-		sb.WriteString(") ")
+		sb.WriteString(" ")
 	}
 
 	// Body
 	{
-		// sb.WriteString(" {\n")
-		// for _, stmt := range node.Body.List {
-		// 	sb.WriteString(fmt.Sprint(stmt, "\n"))
-		// }
-		// sb.WriteString("}\n")
-
-		printer.Fprint(sb, fset, node.Body)
-
-		// err := format.Node(sb, fset, node.Body)
-		// if err != nil {
-		// 	panic(err)
-		// }
+		var bodySb strings.Builder
+		printer.Fprint(&bodySb, fset, node.Body)
+		bodyBytes := toFirstLowerCase(&bodySb)
+		sb.Write(bodyBytes)
 	}
 
 	return false
+}
+
+// toFirstLowerCase transforms all instances of struct field access and fields in struct
+// instantiations to a first lower-case letter.
+func toFirstLowerCase(sb *strings.Builder) []byte {
+	bytes := []byte(sb.String())
+
+	replace := func(re *regexp.Regexp) {
+		lcs := re.FindAllSubmatchIndex(bytes, -1)
+		for _, indices := range lcs {
+			idx := indices[0]
+			bytes[idx] = bytes[idx] + 32 // transforms from upper case to lower case
+		}
+	}
+
+	// Field access
+	{
+		re := regexp.MustCompile(`\.([A-Z])`)
+		replace(re)
+	}
+
+	// Struct instantiation
+	{
+		re := regexp.MustCompile(`([A-Z])[0-9A-Za-z_]*:`)
+		replace(re)
+	}
+
+	return bytes
 }
