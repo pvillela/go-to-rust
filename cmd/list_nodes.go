@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func list_nodes(src string) string {
+func listNodes(src string) string {
 
 	var sb strings.Builder
 

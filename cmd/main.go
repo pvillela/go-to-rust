@@ -61,14 +61,14 @@ func main() {
 	filePrefix := strings.Split(*fileName, ".")[0]
 
 	// Write _node_list.txt file to aid in troubleshooting
-	{
-		data := list_nodes(src)
-		writeToFile(filePrefix+"_node_list.txt", data)
-	}
+	// {
+	// 	data := listNodes(src)
+	// 	writeToFile(filePrefix+"_node_list.txt", data)
+	// }
 
 	// Write AST file to aid in troubleshooting
 	// {
-	// 	data := node_tree(src)
+	// 	data := nodeTree(src)
 	// 	writeToFile(filePrefix+"_node_tree.txt", data)
 	// }
 

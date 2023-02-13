@@ -154,7 +154,7 @@ func toFirstLowerCase(sb *strings.Builder) []byte {
 	replace := func(re *regexp.Regexp) {
 		lcs := re.FindAllSubmatchIndex(bytes, -1)
 		for _, indices := range lcs {
-			idx := indices[0]
+			idx := indices[2]
 			bytes[idx] = bytes[idx] + 32 // transforms from upper case to lower case
 		}
 	}

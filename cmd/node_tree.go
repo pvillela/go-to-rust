@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func node_tree(src string) string {
+func nodeTree(src string) string {
 
 	var sb strings.Builder
 
