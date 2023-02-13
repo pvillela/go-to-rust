@@ -18,6 +18,7 @@
 .idea/
 .gradle/
 out/
+bin/
 build/
 *.iml
 target/derby*
