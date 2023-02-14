@@ -1,0 +1,30 @@
+Pass 1 -- rewrite identifiers in AST:
+
+    Preserve TypeSpec identifiers
+
+        Prefix Field Name identifiers with "P__" if exported, transform the rest of the identifier to snake_case.
+
+    Prefix FuncDecl Name identifiers with "P__" if exported, transform the rest of the identifier to snake_case.
+
+    Preserve Field Type identifiers
+
+    Transform all other identifiers to snake_case.
+
+Pass 2 -- generate code:
+
+    Generate structs
+        
+        Always make them pub
+
+        Process fields:
+            If the field begins with "P__", delete the prefix and generate "pub " in front of the field name
+
+    Generate functions
+
+        If the FuncDecl name identifier begins with "P__", delete the prefix and generate "pub " in front of the field name
+
+    Generate other nodes by simply printing them
+
+Caveats
+
+    Be careful about type assertions: check them and return early as applicable.
