@@ -19,6 +19,15 @@ import (
 // * Preserve Field Type identifiers
 // * Transform all other identifiers to snake_case.
 func pass1(n ast.Node) bool {
+	rewriteName := func(n *ast.Ident) {
+		camel := camelToSnake(n.Name)
+		if n.IsExported() {
+			n.Name = "P__" + camel
+		} else {
+			n.Name = camel
+		}
+	}
+
 	switch x := n.(type) {
 	case *ast.TypeSpec:
 		// Leave Name as is and recurse
@@ -27,11 +36,7 @@ func pass1(n ast.Node) bool {
 		}
 		return false
 	case *ast.FuncDecl:
-		name := x.Name
-		name.Name = camelToSnake(name.Name)
-		if name.IsExported() {
-			name.Name = "P__" + name.Name
-		}
+		rewriteName(x.Name)
 		if x.Recv != nil {
 			ast.Inspect(x.Recv, pass1)
 		}
@@ -45,20 +50,14 @@ func pass1(n ast.Node) bool {
 	case *ast.Field:
 		names := x.Names
 		for _, name := range names {
-			name.Name = camelToSnake(name.Name)
-			if name.IsExported() {
-				name.Name = "P__" + name.Name
-			}
+			rewriteName(name)
 		}
 		// Leave Type as is
 		return false
 	case *ast.ValueSpec: // same as for Field
 		names := x.Names
 		for _, name := range names {
-			name.Name = camelToSnake(name.Name)
-			if name.IsExported() {
-				name.Name = "P__" + name.Name
-			}
+			rewriteName(name)
 		}
 		// Leave Type as is
 		for _, value := range x.Values {
@@ -67,7 +66,6 @@ func pass1(n ast.Node) bool {
 		return false
 	case *ast.Ident:
 		x.Name = camelToSnake(x.Name)
-		fmt.Println("***", x.Name)
 		return true // doesn't matter
 	}
 
@@ -99,9 +97,9 @@ func parseToRust(src string) string {
 		var s string
 		ret := true
 		switch x := n.(type) {
+		case *ast.GenDecl:
+			ret = true
 		case *ast.TypeSpec:
-			// s = fmt.Sprintf("*** struct %v", x.Name.Name)
-			// ret = false
 			var sb strings.Builder
 			ret = type_spec(fset, &sb, x)
 			s += sb.String()
@@ -111,9 +109,8 @@ func parseToRust(src string) string {
 			s += sb.String()
 		case *ast.ValueSpec:
 			var sb strings.Builder
-			printer.Fprint(&sb, fset, x)
+			ret = value_spec(fset, &sb, x)
 			s += sb.String()
-			ret = false
 		case *ast.DeclStmt:
 			var sb strings.Builder
 			printer.Fprint(&sb, fset, x)
@@ -126,6 +123,10 @@ func parseToRust(src string) string {
 			// 	printer.Fprint(&sb, fset, x)
 			// 	s += sb.String()
 			// 	ret = false
+			// default:
+			// 	var sb strings.Builder
+			// 	printer.Fprint(&sb, fset, x)
+			// 	s += sb.String()
 		}
 		if s != "" {
 			// sb.WriteString(fmt.Sprintf("%s:\t%s\n", fset.Position(n.Pos()), s))
@@ -157,23 +158,26 @@ func mapType(typ string) string {
 
 // pubifyName transforms Go names to Rust names, indicating when they are public
 func pubifyName(name string) (pub, newName string) {
-	name1 := name[0:1]
-	if strings.ToUpper(name1) == name1 {
+	if strings.HasPrefix(name, "P__") {
 		pub = "pub "
-		name1 = strings.ToLower(name1)
-		newName = name1 + name[1:]
+		newName = name[3:]
+	} else {
+		newName = name
 	}
 	return
 }
 
 // type_spec transforms an *ast.TypeSpec node
 func type_spec(fset *token.FileSet, sb *strings.Builder, node *ast.TypeSpec) bool {
-	sb.WriteString(fmt.Sprintf("pub struct %v", node.Name.Name))
 	typ, ok := node.Type.(*ast.StructType)
-
 	if ok {
+		sb.WriteString(fmt.Sprintf("pub struct %v", node.Name.Name))
 		struct_type(sb, typ)
 	} else {
+		sb.WriteString(fmt.Sprintf("pub type %v ", node.Name.Name))
+		if node.Assign != token.NoPos {
+			sb.WriteString("= ")
+		}
 		var bodySb strings.Builder
 		printer.Fprint(&bodySb, fset, node.Type)
 		sb.Write([]byte(bodySb.String()))
@@ -238,7 +242,36 @@ func func_decl(fset *token.FileSet, sb *strings.Builder, node *ast.FuncDecl) boo
 	return false
 }
 
-// Provide by ChatGPT
+// value_spec transforms an *ast.ValueSpec node
+func value_spec(fset *token.FileSet, sb *strings.Builder, node *ast.ValueSpec) bool {
+	// name
+	{
+		pub, name := pubifyName(node.Names[0].Name)
+		sb.WriteString(fmt.Sprintf("%vvar %v", pub, name))
+	}
+
+	// Type
+	{
+		typ := node.Type
+		if typ != nil {
+			sb.WriteString(fmt.Sprintf(": %v", typ))
+		}
+	}
+
+	// Values
+	{
+		sb.WriteString(" = ")
+		var valueSb strings.Builder
+		for _, value := range node.Values {
+			printer.Fprint(&valueSb, fset, value)
+		}
+		sb.Write([]byte(valueSb.String()))
+	}
+
+	return false
+}
+
+// Based on ChatGPT
 func camelToSnake(s string) string {
 	// Use a regular expression to find all upper case characters in the string
 	rx := regexp.MustCompile("[A-Z]")
@@ -252,6 +285,9 @@ func camelToSnake(s string) string {
 		lastIndex = pos[1]
 	}
 	result += s[lastIndex:]
+	if result[0] == '_' {
+		result = result[1:]
+	}
 
 	return strings.ToLower(result)
 }
