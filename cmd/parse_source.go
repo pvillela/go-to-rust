@@ -24,7 +24,12 @@ func parseToRust(src string) string {
 		panic(err)
 	}
 
-	// Inspect the AST and print all identifiers and literals.
+	// Pass 1 -- rewrite identifiers in AST:
+	// * Preserve TypeSpec identifiers
+	//   - Prefix Field Name identifiers with "P__" if exported, transform the rest of the identifier to snake_case.
+	// * Prefix FuncDecl Name identifiers with "P__" if exported, transform the rest of the identifier to snake_case.
+	// * Preserve Field Type identifiers
+	// * Transform all other identifiers to snake_case.
 	ast.Inspect(astFile, func(n ast.Node) bool {
 		var s string
 		ret := true
